@@ -17,9 +17,12 @@ MergeMember = namedtuple("MergeMember", "ttf_path size with_shaper codepts thres
 MergeMember.__new__.__defaults__ = (None,) * len(MergeMember._fields)
 ShaperResult = namedtuple("ShaperResult", "map_tf labels_tf")
 
-ARABIC_FONT = "/Library/Fonts/Tahoma.ttf"
-ARABIC_FONT_BOLD = "/Library/Fonts/Tahoma Bold.ttf"
-ARABIC_FONT_BOLD_SERIF = "/Library/Fonts/Times New Roman Bold.ttf"
+#ARABIC_FONT = "/Library/Fonts/Tahoma.ttf"
+#ARABIC_FONT_BOLD = "/Library/Fonts/Tahoma Bold.ttf"
+#ARABIC_FONT_BOLD_SERIF = "/Library/Fonts/Times New Roman Bold.ttf"
+ARABIC_FONT="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+ARABIC_FONT_BOLD="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+ARABIC_FONT_BOLD_SERIF="/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
 HEBREW_FONT = ARABIC_FONT
 HEBREW_FONT_BOLD = ARABIC_FONT_BOLD
@@ -215,6 +218,7 @@ def compose_font(input_pfo_path, subset_key, size_shift_key, output_pfo_path):
             if not shaper_result:
                 map_tf = tempfile.NamedTemporaryFile()
                 labels_tf = tempfile.NamedTemporaryFile()
+                print("CALL text_shaper.py", member.ttf_path, subset_key, map_tf.name, labels_tf.name, "../runtime")
                 subprocess.check_call([
                     "python3",
                     os.path.join(os.path.dirname(os.path.realpath(__file__)), "text_shaper.py"),
@@ -246,9 +250,11 @@ def compose_font(input_pfo_path, subset_key, size_shift_key, output_pfo_path):
             # We must dump the glyphs first.
             if not glob.glob(os.path.join(dump_dir, "*.txt")):
                 try:
+                    print("CALL", *fontgen_params)
                     subprocess.check_call(fontgen_params)
                 except subprocess.CalledProcessError:
                     pass
+            print("CALL fix_ijam.py", dump_dir, collect_dir)
             subprocess.check_call([
                 "python",
                 os.path.join(os.path.dirname(os.path.realpath(__file__)), "fix_ijam.py"),
@@ -257,12 +263,14 @@ def compose_font(input_pfo_path, subset_key, size_shift_key, output_pfo_path):
             ])
 
         try:
+            print("CALL", *fontgen_params)
             subprocess.check_call(fontgen_params)
         except subprocess.CalledProcessError:
             print("Failed generating member for %s - it will not be output!" % input_pfo_name)
             return
 
     merge_params.append(output_pfo_path)
+    print("CALL pfo_merge.py", *merge_params)
     subprocess.check_call([
         "python",
         os.path.join(os.path.dirname(os.path.realpath(__file__)), "pfo_merge.py")

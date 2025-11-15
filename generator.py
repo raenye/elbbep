@@ -1,3 +1,5 @@
+#! /usr/bin/python
+
 import glob
 import os
 import requests
@@ -59,9 +61,12 @@ def cache_path(ns, k):
     return os.path.join(cache_root, ns, k)
 
 def download_firmware(series, hw_rev):
-    fw_manifest = requests.get("http://pebblefw.s3.amazonaws.com/pebble/%s/release-%s/latest.json" % (hw_rev, series)).json()
-    ver = fw_manifest["normal"]["friendlyVersion"]
-    url = fw_manifest["normal"]["url"]
+    #https://web.archive.org/web/20201013193016/https://pebblefw.s3.amazonaws.com/pebble/snowy_s3/release-v3.8/pbz/Pebble-4.3-snowy_s3.pbz
+    #fw_manifest = requests.get("https://web.archive.org/web/20201013193016/https://pebblefw.s3.amazonaws.com/pebble/%s/release-%s/latest.json" % (hw_rev, series)).json()
+    #ver = fw_manifest["normal"]["friendlyVersion"]
+    ver = "4.3"
+    #url = fw_manifest["normal"]["url"]
+    url = "https://github.com/pebble-dev/legacy-firmware-patcher/releases/download/rbl2-rc1/Pebble-4.4.2-rbl-snowy_s3.pbz"
     pbz_path = cache_path("stock-firmware", "%s-%s.pbz" % (ver, hw_rev))
     if not os.path.exists(pbz_path):
         open(pbz_path, "wb").write(requests.get(url).content)
@@ -69,14 +74,14 @@ def download_firmware(series, hw_rev):
 
 def download_sdk(fw_ver):
     fw_ver = fw_ver.strip("v")
-    sdk_list = requests.get("http://sdk.getpebble.com/v1/files/sdk-core?channel=release").json()
+    sdk_list = requests.get("https://sdk.rebble.io/v1/files/sdk-core?channel=release").json()
     versions = set([x["version"] for x in sdk_list["files"]])
     if fw_ver not in versions:
         fw_ver, _, _ = fw_ver.rpartition(".")
 
     zip_path = cache_path("sdk-zip", "%s.tar.bz2" % fw_ver)
     if not os.path.exists(zip_path):
-        sdk_manifest = requests.get("http://sdk.getpebble.com/v1/files/sdk-core/%s?channel=release" % fw_ver).json()
+        sdk_manifest = requests.get("https://sdk.rebble.io/v1/files/sdk-core/%s?channel=release" % fw_ver).json()
         url = sdk_manifest["url"]
         open(zip_path, "wb").write(requests.get(url).content)
 
@@ -150,6 +155,7 @@ def extract_fonts(fw_dir):
     unpacked_path = os.path.join(fw_dir, "system_fonts")
     if not os.path.exists(unpacked_path):
         os.mkdir(unpacked_path)
+        print("CALL fonts/find_system_fonts.py", bin_path, res_path, unpacked_path)
         subprocess.check_call([
             "python",
             "fonts/find_system_fonts.py",
@@ -162,6 +168,7 @@ def generate_fonts(original_fonts_path, subset_key, size_shift_key):
     new_fonts_path = os.path.join(os.path.dirname(original_fonts_path), "generated_fonts_%s" % size_shift_key)
     if not os.path.exists(new_fonts_path):
         os.mkdir(new_fonts_path)
+        print("CALL fonts/compose.py", original_fonts_path, subset_key, size_shift_key, new_fonts_path, "runtime/")
         subprocess.check_call([
             "python",
             "fonts/compose.py",
@@ -194,6 +201,7 @@ msgstr ""
     with tempfile.NamedTemporaryFile(mode="w") as po_tf:
         po_tf.write(po_file)
         po_tf.flush()
+        print("CALL msgfmt", po_tf.name, "-o", mo_tf.name)
         subprocess.check_call(["msgfmt", po_tf.name, "-o", mo_tf.name])
 
     resmap = {
@@ -213,6 +221,7 @@ def patch_firmware(target_bin, sdk_dir, hw_rev):
     out_bin = target_bin.replace(".bin", ".patched.bin")
     if not os.path.exists(out_bin):
         libpebble_a_path = os.path.join(sdk_dir, "sdk-core", "pebble", platform, "lib", "libpebble.a")
+        print("CALL patch.py", platform, target_bin, libpebble_a_path, out_bin)
         subprocess.check_call([
             "python",
             "patch.py",
@@ -238,7 +247,7 @@ def pack_firmware(fw_ver, rev_no, fw_dir, new_bin_path, out_pbz_path):
     if os.path.exists(out_pbz_path):
         os.remove(out_pbz_path)
     manifest = json.load(open(os.path.join(fw_dir, "manifest.json")))
-    fw_bin = open(new_bin_path, "r").read()
+    fw_bin = open(new_bin_path, "rb").read()
     fw_bin = tag_version(fw_ver, rev_no, fw_bin)
     manifest["firmware"]["size"] = len(fw_bin)
     manifest["firmware"]["crc"] = crc32(fw_bin)

@@ -69,7 +69,7 @@ if TEXT_UNSHAPE:
     unshape_asm = """
     LDR r0, [sp, #""" + str(text_struct_sp_off) + """]
     """ + \
-    "\n".join((".byte 0x%x" % ord(mc) for mc in gdt_return_overwrote_mcode[:8])) + """
+    "\n".join((".byte 0x%x" % mc for mc in gdt_return_overwrote_mcode[:8])) + """
     @ At this point, we're back to immediately after the BL...
     @ Run the un-shaper...
     PUSH {ip, lr}

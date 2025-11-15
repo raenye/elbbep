@@ -23,7 +23,7 @@ map_path = sys.argv[3]
 labels_path = sys.argv[4]
 codegen_path = sys.argv[5]
 
-scratch_codepoint_ranges = ((0x700, 0x750), (0x780, 0x7FF + 1))
+scratch_codepoint_ranges = ((0x700, 0x750), (0x780, 0x7FF + 1), (0xf00, 0xfff))
 
 kashida = "ـ"
 

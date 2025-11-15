@@ -15,7 +15,7 @@ def font_read(pfo_path):
     HASHTABLE_CHAIN_ITEM = struct.Struct("<HH")
     pfo = open(pfo_path, "rb").read()
 
-    pfo_ver = struct.unpack("<B", pfo[0])[0]
+    pfo_ver = pfo[0]
     assert pfo_ver in (2, 3), "%s has unknown PFO version %d" % (pfo_path, pfo_ver)
     if pfo_ver == 2:
         HEADER_SIZE = 8
@@ -42,8 +42,8 @@ def font_read(pfo_path):
             codept, offset = HASHTABLE_CHAIN_ITEM.unpack(pfo[item_addr:item_addr + HASHTABLE_CHAIN_ITEM.size])
             if offset not in glyphs:
                 data_start = glyphs_base + offset
-                h, w = struct.unpack("<BB", pfo[data_start:data_start + 2])
-                bitmap_data_sz = int(math.ceil((h * w) / 8))
+                h, w = pfo[data_start:data_start + 2]
+                bitmap_data_sz = math.ceil((h * w) // 8)
                 bitmap_data_sz = int(math.ceil(bitmap_data_sz / 4) * 4)
                 data_end = data_start + 5 + bitmap_data_sz
                 glyph_data = pfo[data_start:data_end]
@@ -64,14 +64,14 @@ def font_write(font, pfo_path):
     header = struct.pack('<BBHHBBBB', 3, font.max_height, sum((len(x.codepoints) for x in font.glyphs.values())), font.wildcard, HASHTABLE_DIRECTORY_SIZE, 2, 10, features)
 
     # Generate hashtable chain lists
-    glyph_data = "\0\0\0\0"
+    glyph_data = b"\0\0\0\0"
     codepoint_offset_pairs = []
     for glyph in sorted(font.glyphs.values(), key=lambda x: x.codepoints[0]):
         for cpt in glyph.codepoints:
             codepoint_offset_pairs.append((cpt, len(glyph_data)))
         glyph_data += glyph.data
 
-    chains = ["" for i in range(HASHTABLE_DIRECTORY_SIZE)]
+    chains = [b"" for i in range(HASHTABLE_DIRECTORY_SIZE)]
     chain_counts = defaultdict(int)
     for cpt, offset in sorted(codepoint_offset_pairs, key=lambda x: x[0]):
         bin_no = cpt % HASHTABLE_DIRECTORY_SIZE
@@ -86,7 +86,7 @@ def font_write(font, pfo_path):
         hashtable_data += struct.pack("<BBH", x, chain_counts[x], off)
         off += len(chains[x])
 
-    open(pfo_path, "wb").write(header + hashtable_data + "".join(chains) + glyph_data)
+    open(pfo_path, "wb").write(header + hashtable_data + b"".join(chains) + glyph_data)
 
 def merge_fonts(font_1, font_2):
     assert font_1.compressed == font_2.compressed

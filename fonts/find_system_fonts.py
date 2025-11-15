@@ -14,8 +14,8 @@ BOOTLOADER_OFFSET = 0x4000
 def extract_system_font_resource_ids(target_bin_path):
     target_bin = open(target_bin_path, "rb").read()
     if len(target_bin) % 4 != 0:
-        target_bin += '\0' * (4 - (len(target_bin) % 4))
-    words = struct.unpack("<" + "L" * (len(target_bin)/4), target_bin)
+        target_bin += b'\0' * (4 - (len(target_bin) % 4))
+    words = struct.unpack("<" + "L" * (len(target_bin)//4), target_bin)
     last_word = 0
     final_table = {}
     work_table = {}
@@ -24,8 +24,8 @@ def extract_system_font_resource_ids(target_bin_path):
         since_last += 1
         if last_word > MICROCODE_OFFSET and last_word < 0x9000000:
             name_ptr = last_word - MICROCODE_OFFSET - BOOTLOADER_OFFSET
-            if target_bin[name_ptr:name_ptr + 11] == "RESOURCE_ID":
-                full_name = target_bin[name_ptr:target_bin[name_ptr:].index('\0') + name_ptr]
+            if target_bin[name_ptr:name_ptr + 11] == b"RESOURCE_ID":
+                full_name = target_bin[name_ptr:target_bin[name_ptr:].index(b'\0') + name_ptr].decode('ascii')
                 work_table[full_name] = word & 0xffff
                 since_last = 0
         if since_last > 2:
@@ -42,7 +42,8 @@ if len(sys.argv) < 2:
     sys.exit(0)
 
 result = extract_system_font_resource_ids(sys.argv[1])
-print(json.dumps(result))
+print(result)
+#print(json.dumps(result))
 
 if len(sys.argv) == 4:
     for name, key in result.items():

@@ -23,7 +23,7 @@ class Patcher:
         self.other_c_paths = other_c_paths
 
         self.target_bin = open(target_bin_path, "rb").read()
-        self.target_deasm = subprocess.check_output(["arm-none-eabi-objdump", "-b", "binary", "-marm", "-Mforce-thumb", "-D", target_bin_path])
+        self.target_deasm = subprocess.check_output(["arm-none-eabi-objdump", "-b", "binary", "-marm", "-Mforce-thumb", "-D", target_bin_path], text=True)
         self.target_deasm = self.target_deasm.replace("\t", " ").replace("fp", "r11").replace("sl", "r10")
         open("target.d", "w").write(self.target_deasm)
         self.target_deasm_index = {}
@@ -59,7 +59,7 @@ class Patcher:
         self.op_queue = []
 
     def _build_symbol_table(self, libpebble_a_path):
-        libpebble_deasm = subprocess.check_output(["arm-none-eabi-objdump", "-d", libpebble_a_path])
+        libpebble_deasm = subprocess.check_output(["arm-none-eabi-objdump", "-d", libpebble_a_path], text=True)
         # All pebble SDK calls are indirected via a jump table baked into the firmware.
         # We can use this jump table to build a symbol table for the stripped firmware binary.
         # One way to figure out where the table is is to check pbl_table_addr from an app.
@@ -218,7 +218,7 @@ class Patcher:
         passthru_asm = ""
         # Perform whatever actions we overwrote.
         for byte in overwrote_mcode:
-            passthru_asm += ".byte 0x%x\n" % ord(byte)
+            passthru_asm += ".byte 0x%x\n" % byte
 
         # Return to original site
         passthru_asm += "B %s__return\n" % dest_symbol
@@ -246,6 +246,7 @@ class Patcher:
                 patch_h_composed += "%s %s ();\n" % (op.return_type, op.symbol)
                 patch_s_composed += ".thumb_func\n.global %s\n%s:\n\t" % (op.symbol, op.symbol)
                 patch_s_composed += op.content.replace("\n", "\n\t") + "\n"
+
 
         cflags = ["-std=c99", "-mcpu=cortex-m3", "-mthumb", "-g", "-nostdlib", "-Wl,-Tpatch.comp.ld", "-Wl,-Map,patch.comp.map", "-D_TIME_H_", "-I.", "-Iruntime", "-Os", "-ffunction-sections", "-fdata-sections"]
         cflags += self.cflags
@@ -275,7 +276,7 @@ class Patcher:
 
         # And relocations.
         # First, we need the symbols from the compiled patch.
-        symtab_txt = subprocess.check_output(["arm-none-eabi-nm", "patch.comp.o"])
+        symtab_txt = subprocess.check_output(["arm-none-eabi-nm", "patch.comp.o"], text=True)
         symtab = {
             m.group("name"): int(m.group("addr"), 16) for m in re.finditer(r"(?P<addr>[a-f0-9]+)\s+\w+\s+(?P<name>\w+)$", symtab_txt, re.MULTILINE)
         }
@@ -302,7 +303,7 @@ class Patcher:
         subprocess.check_call(["arm-none-eabi-objcopy", "patch.comp.o", "-S", "-O", "binary", "patch.comp.bin"])
         # Make sure patch code will be aligned
         if len(self.target_bin) % 2 == 1:
-            self.target_bin += "\0"
+            self.target_bin += b"\0"
         self.target_bin += open("patch.comp.bin", "rb").read()
         self.target_bin += self.trailing_bin_content
         remaining_space = self.MAX_IMAGE_SIZE - len(self.target_bin)

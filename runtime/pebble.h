@@ -28,6 +28,7 @@
 
 struct tm;
 typedef struct tm tm;
+typedef long int time_t;
 
 //! Determine whether a variable is signed or not.
 //! @param var The variable to evaluate.

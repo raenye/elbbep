@@ -94,7 +94,7 @@ GLYPH_BUFFER_SIZE_BYTES = 256
 def grouper(n, iterable, fillvalue=None):
     """grouper(3, 'ABCDEFG', 'x') --> ABC DEF Gxx"""
     args = [iter(iterable)] * n
-    return itertools.izip_longest(fillvalue=fillvalue, *args)
+    return itertools.zip_longest(fillvalue=fillvalue, *args)
 
 def hasher(codepoint, num_glyphs):
     return (codepoint % num_glyphs)
@@ -114,7 +114,7 @@ class Font:
         self.legacy = legacy
         self.face = freetype.Face(self.ttf_path)
         self.face.set_pixel_sizes(0, self.max_height)
-        self.name = self.face.family_name + "_" + self.face.style_name
+        self.name = self.face.family_name + b"_" + self.face.style_name
         self.wildcard_codepoint = WILDCARD_CODEPOINT
         self.number_of_glyphs = 0
         self.table_size = HASH_TABLE_SIZE
@@ -164,7 +164,7 @@ class Font:
         if regex_string != ".*":
             try:
                 self.regex = re.compile(unicode(regex_string, 'utf8'), re.UNICODE)
-            except Exception, e:
+            except Exception:
                 raise Exception("Supplied filter argument was not a valid regular expression."
                                 "Font: {}".format(self.ttf_path))
         else:
@@ -202,7 +202,7 @@ class Font:
 
     def is_supported_glyph(self, codepoint):
         return (self.face.get_char_index(codepoint) > 0 or
-                (codepoint == unichr(self.wildcard_codepoint)))
+                (codepoint == chr(self.wildcard_codepoint)))
 
     def compress_glyph_RLE4(self, bitmap):
         # This Run Length Compression scheme works by converting runs of identical symbols to the
@@ -260,7 +260,7 @@ class Font:
         src_ptr = GLYPH_BUFFER_SIZE_BYTES - len(glyph_packed)
 
         def glyph_packed_iterator(tbl, num):
-            for i in xrange(0, num):
+            for i in range(num):
                 yield struct.unpack('<B', tbl[i])[0]
 
         # Generate glyph buffer. Ignore the header
@@ -321,7 +321,7 @@ class Font:
         self.face.load_glyph(gindex, flags)
         # Font metrics
         bitmap = self.face.glyph.bitmap
-        advance = self.face.glyph.advance.x / 64     # Convert 26.6 fixed float format to px
+        advance = self.face.glyph.advance.x // 64     # Convert 26.6 fixed float format to px
         advance += self.tracking_adjust
         width = bitmap.width
         height = bitmap.rows
@@ -351,7 +351,7 @@ class Font:
                 try:
                     fn += "_" + self.codept_labels[codepoint]
                 except KeyError:
-                    name = unicodedata.name(unichr(codepoint), None)
+                    name = unicodedata.name(chr(codepoint), None)
                     if name:
                         fn += "_" + name
                 fn += ".txt"
@@ -405,7 +405,7 @@ class Font:
         bottom += self.shift[1]
         glyph_header = struct.pack(self.glyph_header, width, height, left, bottom, advance)
 
-        return glyph_header + ''.join(glyph_packed)
+        return glyph_header + b''.join(glyph_packed)
 
     def fontinfo_bits(self):
         if self.version == FONT_VERSION_2:
@@ -449,7 +449,7 @@ class Font:
                         struct.pack(offset_table_format, codepoint, offset))
                 bucket_sizes[glyph_hash] = bucket_sizes[glyph_hash] + 1
                 if bucket_sizes[glyph_hash] > OFFSET_TABLE_MAX_SIZE:
-                    print "error: %d > 127" % bucket_sizes[glyph_hash]
+                    print("error: %d > 127" % bucket_sizes[glyph_hash])
             return bucket_sizes
 
         def add_glyph(codepoint, next_offset, gindex, glyph_indices_lookup):
@@ -471,7 +471,7 @@ class Font:
         def codepoint_is_in_subset(codepoint):
            if (codepoint not in (WILDCARD_CODEPOINT, ELLIPSIS_CODEPOINT)):
               if self.regex is not None:
-                  if self.regex.match(unichr(codepoint)) is None:
+                  if self.regex.match(chr(codepoint)) is None:
                       return False
               if codepoint not in self.codepoints:
                  return False
@@ -507,7 +507,7 @@ class Font:
                     raise Exception('Wildcard codepoint is used for something else in this font.'
                                     'Font {}'.format(self.ttf_path))
 
-                if (gindex is 0):
+                if (gindex == 0):
                     raise Exception('0 index is reused by a non wildcard glyph. Font {}'.
                                     format(self.ttf_path))
 
@@ -535,10 +535,10 @@ class Font:
 
     def bitstring(self):
         btstr = self.fontinfo_bits()
-        btstr += ''.join(self.hash_table)
+        btstr += b''.join(self.hash_table)
         for table in self.offset_tables:
-            btstr += ''.join(table)
-        btstr += ''.join(self.glyph_table)
+            btstr += b''.join(table)
+        btstr += b''.join(self.glyph_table)
 
         return btstr
 
@@ -550,7 +550,7 @@ class Font:
         f.write("// TODO: Load font from flash...\n\n")
         self.build_tables()
         bytes = self.bitstring()
-        generate_c_byte_array.write(f, bytes, self.name)
+        generate_c_byte_array.write(f, bytes, self.name.decode('ascii'))
         f.close()
         return to_file
 
@@ -607,15 +607,15 @@ def process_all_fonts():
     header_paths = []
     for font_path in font_paths:
         f = Font(font_path, 14)
-        print "Rendering {0}...".format(f.name)
+        print("Rendering {0}...".format(f.name))
         f.convert_to_pfo()
         to_file = f.convert_to_h()
         header_paths.append(os.path.basename(to_file))
 
     f = open(os.path.join(font_directory, 'fonts.h'), 'w')
-    print>>f, '#pragma once'
+    f.write('#pragma once\n')
     for h in header_paths:
-        print>>f, "#include \"{0}\"".format(h)
+        f.write("#include \"{0}\"\n".format(h))
     f.close()
 
 def process_cmd_line_args():
@@ -623,7 +623,7 @@ def process_cmd_line_args():
     subparsers = parser.add_subparsers(help="commands", dest='which')
 
     pbi_parser = subparsers.add_parser('pfo', help="Make a .pfo (pebble font) file")
-    pbi_parser.add_argument('-v', '--version', type=int, choices=xrange(2, 4),
+    pbi_parser.add_argument('-v', '--version', type=int, choices=range(2, 4),
                             help="Force output of Version V .pfo (DEFAULT is 2)")
     pbi_parser.add_argument('--compress', help="Valid compression types are: RLE4. Version 3 only.")
     pbi_parser.add_argument('--extended', action='store_true',
